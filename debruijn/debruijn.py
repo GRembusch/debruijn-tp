@@ -23,6 +23,7 @@ import random
 random.seed(9001)
 from random import randint
 import statistics
+from collections import defaultdict
 
 __author__ = "Your Name"
 __copyright__ = "Universite Paris Diderot"
@@ -66,16 +67,27 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
-    pass
+    with open(fastq_file) as myfile:
+        for line in myfile: # @EVA...
+            yield next(myfile)[:-1] # Séquence
+            next(myfile) # +
+            next(myfile) # JJJ...
 
 
 def cut_kmer(read, kmer_size):
-    pass
+    for i in range(0, len(read) - kmer_size +1): # remove the "\n" at the end
+        print(read[i:i+kmer_size])
+        yield read[i:i+kmer_size]
+    #for value in read[:-kmer_size]:
+    #    yield read[i]
 
 
 def build_kmer_dict(fastq_file, kmer_size):
-    pass
-
+    kmer_dict = defaultdict(lambda: 0)
+    for read in read_fastq(fastq_file):
+        for kmer in cut_kmer(read, kmer_size):
+            kmer_dict[kmer] += 1
+    return kmer_dict
 
 def build_graph(kmer_dict):
     pass
@@ -88,7 +100,7 @@ def std(data):
     pass
 
 
-def select_best_path(graph, path_list, path_length, weight_avg_list, 
+def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
     pass
 
@@ -128,6 +140,7 @@ def main():
     """
     # Get arguments
     args = get_arguments()
+    build_kmer_dict('data/eva71_hundred_reads.fq', 5)
 
 if __name__ == '__main__':
     main()
