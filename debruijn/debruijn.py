@@ -90,8 +90,14 @@ def build_kmer_dict(fastq_file, kmer_size):
     return kmer_dict
 
 def build_graph(kmer_dict):
-    pass
-
+    kmer_graph = nx.DiGraph()
+    for key in kmer_dict:
+        node1 = key[:-1]
+        node2 = key[1:]
+        kmer_graph.add_node(node1)
+        kmer_graph.add_node(node2)
+        kmer_graph.add_edge(node1,node2,weight=kmer_dict[key])
+    return kmer_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     pass
@@ -140,7 +146,8 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-    build_kmer_dict('data/eva71_hundred_reads.fq', 5)
+    mydict = build_kmer_dict('data/eva71_hundred_reads.fq', 5)
+    print(mydict)
 
 if __name__ == '__main__':
     main()
