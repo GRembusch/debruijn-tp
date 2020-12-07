@@ -24,6 +24,7 @@ random.seed(9001)
 from random import randint
 import statistics
 from collections import defaultdict
+from matplotlib import pyplot as plt
 
 __author__ = "Your Name"
 __copyright__ = "Universite Paris Diderot"
@@ -76,7 +77,6 @@ def read_fastq(fastq_file):
 
 def cut_kmer(read, kmer_size):
     for i in range(0, len(read) - kmer_size +1): # remove the "\n" at the end
-        print(read[i:i+kmer_size])
         yield read[i:i+kmer_size]
     #for value in read[:-kmer_size]:
     #    yield read[i]
@@ -126,16 +126,65 @@ def solve_out_tips(graph, ending_nodes):
     pass
 
 def get_starting_nodes(graph):
-    pass
+    starting_nodes = []
+    for node in graph:
+        if len(graph.in_edges(node)) == 0:
+            starting_nodes.append(node)
+    return starting_nodes
 
 def get_sink_nodes(graph):
-    pass
+    sink_nodes = []
+    for node in graph:
+        if len(graph.out_edges(node)) == 0:
+            sink_nodes.append(node)
+    return sink_nodes
 
 def get_contigs(graph, starting_nodes, ending_nodes):
-    pass
+    contigs = []
+    for source in starting_nodes:
+        for target in ending_nodes:
+            paths = nx.all_simple_paths(graph,source,target)
+            for path in paths :
+                final_path = path[0]
+                for edge in path[1:]:
+                    final_path += edge[1]
+                contigs.append((final_path,len(final_path)))
+    return contigs
+
+def fill(text, width=80):
+    """Split text with a line return to respect fasta format"""
+    return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 
 def save_contigs(contigs_list, output_file):
-    pass
+    myfile = open(output_file,'w')
+    contig_number = 0
+    for contig, len_contig in contigs_list:
+        my_string = '>contig_' + str(contig_number) + ' len=' + str(len_contig) + '\n'
+        myfile.write(my_string + fill(contig) + '\n')
+        contig_number += 1
+    myfile.close()
+
+
+
+def draw_graph(graph, graphimg_file):
+    """Draw the graph
+    """
+    fig, ax = plt.subplots()
+    elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
+    #print(elarge)
+    esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
+    #print(elarge)
+    # Draw the graph with networkx
+    #pos=nx.spring_layout(graph)
+    pos = nx.random_layout(graph)
+    nx.draw_networkx_nodes(graph, pos, node_size=6)
+    nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
+    nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
+                           edge_color='b', style='dashed')
+    #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
+    # save image
+    plt.savefig(graphimg_file)
+
 
 #==============================================================
 # Main program
@@ -146,8 +195,13 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-    mydict = build_kmer_dict('data/eva71_hundred_reads.fq', 5)
-    print(mydict)
+    mydict = build_kmer_dict('data/eva71_hundred_reads.fq', 21)
+    my_graph = build_graph(mydict)
+    #draw_graph(my_graph, 'graph.png')
+    source = get_starting_nodes(my_graph)
+    target = get_sink_nodes(my_graph)
+    contigs = get_contigs(my_graph,source,target)
+    save_contigs(contigs,'tests/test.fna')
 
 if __name__ == '__main__':
     main()
