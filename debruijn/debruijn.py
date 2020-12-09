@@ -16,14 +16,14 @@
 import argparse
 import os
 import sys
-import networkx as nx
-import matplotlib
 from operator import itemgetter
 import random
-random.seed(9001)
 from random import randint
 import statistics
 from collections import defaultdict
+import networkx as nx
+import matplotlib
+random.seed(9001)
 from matplotlib import pyplot as plt
 
 __author__ = "Your Name"
@@ -100,24 +100,106 @@ def build_graph(kmer_dict):
     return kmer_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
-    pass
+    for path in path_list:
+        for node_number in range(0,len(path)-1) :
+            graph.remove_edge(path[node_number], path[node_number+1])
+            if node_number == 0:
+                if delete_entry_node:
+                    graph.remove_node(path[node_number])
+            else:
+                graph.remove_node(path[node_number])
+        if delete_sink_node:
+            graph.remove_node(path[len(path)-1])
+    return graph
 
 def std(data):
-    pass
-
+    return statistics.stdev(data)
 
 def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
-    pass
+    # determine if a path is more frequent than others
+    max_weight = max(weight_avg_list)
+    max_weight_indexes = [i for i, x in enumerate(weight_avg_list) if x == max_weight]
+    if len(max_weight_indexes) == 1:
+        path_to_keep = max_weight_indexes[0]
+    else:
+        # determine if a path is longer than others
+        max_length = max(path_length)
+        max_length_indexes = [i for i, x in enumerate(path_length) if x == max_length]
+        if len(max_length_indexes) == 1:
+            path_to_keep = max_length_indexes[0]
+        else:
+            # choose a path randomly
+            path_to_keep = random.randint(0,len(path_list)-1)
+    path_to_keep = path_list[path_to_keep]
+    # make the list of paths to remove
+    paths_to_remove = []
+    for path in path_list:
+        if path != path_to_keep:
+            paths_to_remove.append(path)
+    graph = remove_paths(graph,paths_to_remove,delete_entry_node,delete_sink_node)
+    return graph
 
 def path_average_weight(graph, path):
-    pass
+    average_weight = []
+    for i in range(0, len(path)-1):
+        data = graph.get_edge_data(path[i],path[i+1])
+        average_weight.append(data['weight'])
+    return statistics.mean(average_weight)
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    pass
+    path_list = list(nx.all_simple_paths(graph,ancestor_node, descendant_node))
+    path_length = []
+    path_weight = []
+    for path in path_list:
+        path_length.append(len(path))
+        path_weight.append(path_average_weight(graph,path))
+    graph = select_best_path(graph, path_list, path_length, path_weight)
+    return graph
+
+def test_solve_bubble():
+    graph_1 = nx.DiGraph()
+    graph_1.add_weighted_edges_from([(1, 2, 10), (3, 2, 10), (2, 4, 15),
+                                     (4, 5, 15), (2, 10,10), (10, 5,10),
+                                     (2, 8, 3), (8, 9, 3), (9, 5, 3),
+                                     (5, 6, 10), (5, 7, 10)])
+    #graph_1 = solve_bubble(graph_1, 2, 5)
+
+    graph_2 = nx.DiGraph()
+    graph_2.add_weighted_edges_from([(1, 2, 10), (3, 2, 10), (2, 4, 10),
+                                     (4, 5, 10), (2, 10,10), (10, 5,10),
+                                     (2, 8, 10), (8, 9, 10), (9, 5, 10),
+                                     (5, 6, 10), (5, 7, 10)])
+    #graph_2 = solve_bubble(graph_2, 2, 5)
+    simplify_bubbles(graph_1)
+
+
 
 def simplify_bubbles(graph):
-    pass
+    nodes = graph.nodes()
+    bubbles = []
+    for node in nodes:
+        predecessors = list(graph.predecessors(node))
+        print("Node "+str(node))
+        for predecessor in predecessors:
+            print(predecessor)
+        if len(predecessors) > 1:
+            p_0 = predecessors[0]
+            p_1 = predecessors[1]
+            common_ancestor =  nx.algorithms.lowest_common_ancestor(graph,p_0,p_1)
+            for i in range(1,len(predecessors)-1):
+                pred = predecessors[i]
+                common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
+            if common_ancestor != None:
+                #graph = solve_bubble(graph,common_ancestor,node)
+                bubbles.append((node,common_ancestor))
+    for bubble in bubbles:
+        print("Bubble : ")
+        print(str(bubble[1]) + " " + str(bubble[0]))
+        graph = solve_bubble(graph,bubble[1],bubble[0])
+
+    return graph
+
 
 def solve_entry_tips(graph, starting_nodes):
     pass
@@ -166,24 +248,24 @@ def save_contigs(contigs_list, output_file):
 
 
 
-def draw_graph(graph, graphimg_file):
-    """Draw the graph
-    """
-    fig, ax = plt.subplots()
-    elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
-    #print(elarge)
-    esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
-    #print(elarge)
-    # Draw the graph with networkx
-    #pos=nx.spring_layout(graph)
-    pos = nx.random_layout(graph)
-    nx.draw_networkx_nodes(graph, pos, node_size=6)
-    nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
-    nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
-                           edge_color='b', style='dashed')
-    #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
-    # save image
-    plt.savefig(graphimg_file)
+# def draw_graph(graph, graphimg_file):
+#     """Draw the graph
+#     """
+#     fig, ax = plt.subplots()
+#     elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
+#     #print(elarge)
+#     esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
+#     #print(elarge)
+#     # Draw the graph with networkx
+#     #pos=nx.spring_layout(graph)
+#     pos = nx.random_layout(graph)
+#     nx.draw_networkx_nodes(graph, pos, node_size=6)
+#     nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
+#     nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
+#                            edge_color='b', style='dashed')
+#     #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
+#     # save image
+#     plt.savefig(graphimg_file)
 
 
 #==============================================================
@@ -201,7 +283,8 @@ def main():
     source = get_starting_nodes(my_graph)
     target = get_sink_nodes(my_graph)
     contigs = get_contigs(my_graph,source,target)
-    save_contigs(contigs,'tests/test.fna')
+    #save_contigs(contigs,'tests/test.fna')
+    test_solve_bubble()
 
 if __name__ == '__main__':
     main()
