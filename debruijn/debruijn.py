@@ -18,13 +18,10 @@ import os
 import sys
 from operator import itemgetter
 import random
-#from random import randint
 import statistics
 from collections import defaultdict
 import networkx as nx
-import matplotlib
 random.seed(9001)
-#from matplotlib import pyplot as plt
 
 __author__ = "Your Name"
 __copyright__ = "Universite Paris Diderot"
@@ -60,7 +57,7 @@ def get_arguments():
     parser.add_argument('-i', dest='fastq_file', type=isfile,
                         required=True, help="Fastq file")
     parser.add_argument('-k', dest='kmer_size', type=int,
-                        default=21, help="K-mer size (default 21)")
+                        default=5, help="K-mer size (default 21)")
     parser.add_argument('-o', dest='output_file', type=str,
                         default=os.curdir + os.sep + "contigs.fasta",
                         help="Output contigs in fasta file")
@@ -212,24 +209,19 @@ def simplify_bubbles(graph):
     bubbles = []
     for node in nodes:
         predecessors = list(graph.predecessors(node))
-        print("Node "+str(node))
         for predecessor in predecessors:
-            print(predecessor)
-        if len(predecessors) > 1:
-            p_0 = predecessors[0]
-            p_1 = predecessors[1]
-            common_ancestor =  nx.algorithms.lowest_common_ancestor(graph,p_0,p_1)
-            for i in range(1,len(predecessors)-1):
-                pred = predecessors[i]
-                common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
-            if common_ancestor != None:
-                #graph = solve_bubble(graph,common_ancestor,node)
-                bubbles.append((node,common_ancestor))
+            if len(predecessors) > 1:
+                p_0 = predecessors[0]
+                p_1 = predecessors[1]
+                common_ancestor =  nx.algorithms.lowest_common_ancestor(graph,p_0,p_1)
+                for i in range(1,len(predecessors)-1):
+                    pred = predecessors[i]
+                    common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
+                if common_ancestor != None:
+                    #graph = solve_bubble(graph,common_ancestor,node)
+                    bubbles.append((node,common_ancestor))
     for bubble in bubbles:
-        print("Bubble : ")
-        print(str(bubble[1]) + " " + str(bubble[0]))
         graph = solve_bubble(graph,bubble[1],bubble[0])
-
     return graph
 
 
@@ -250,10 +242,15 @@ def solve_out_tips(graph, ending_nodes):
           graph: The graph from which we want to remove tips.
           ending_nodes: The ending nodes from the paths.
     """
-    common_ancestor = nx.algorithms.lowest_common_ancestor(graph,ending_nodes[0], ending_nodes[1])
-    for i in range(1,len(ending_nodes)-1):
+    if len(ending_nodes) <= 1:
+        return graph
+    common_ancestor = nx.algorithms.lowest_common_ancestor(graph, ending_nodes[0], ending_nodes[1])
+    for i in range(2,len(ending_nodes)):
         pred = ending_nodes[i]
-        common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
+        if common_ancestor != None :
+            common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
+    if common_ancestor == None:
+        return graph
     paths = []
     path_length = []
     path_weight = []
@@ -263,7 +260,7 @@ def solve_out_tips(graph, ending_nodes):
             paths.append(simple_path)
             path_length.append(len(simple_path))
             path_weight.append(path_average_weight(graph,simple_path))
-    graph = select_best_path(graph, paths, path_length, path_weight)
+    graph = select_best_path(graph, paths, path_length, path_weight,delete_sink_node=True)
     return graph
 
 def get_starting_nodes(graph):
@@ -302,7 +299,7 @@ def get_contigs(graph, starting_nodes, ending_nodes):
             for path in paths :
                 final_path = path[0]
                 for edge in path[1:]:
-                    final_path += edge[1]
+                    final_path += edge[-1]
                 contigs.append((final_path,len(final_path)))
     return contigs
 
@@ -324,28 +321,6 @@ def save_contigs(contigs_list, output_file):
         contig_number += 1
     myfile.close()
 
-
-
-# def draw_graph(graph, graphimg_file):
-#     """Draw the graph
-#     """
-#     fig, ax = plt.subplots()
-#     elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
-#     #print(elarge)
-#     esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
-#     #print(elarge)
-#     # Draw the graph with networkx
-#     #pos=nx.spring_layout(graph)
-#     pos = nx.random_layout(graph)
-#     nx.draw_networkx_nodes(graph, pos, node_size=6)
-#     nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
-#     nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
-#                            edge_color='b', style='dashed')
-#     #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
-#     # save image
-#     plt.savefig(graphimg_file)
-
-
 #==============================================================
 # Main program
 #==============================================================
@@ -353,15 +328,22 @@ def main():
     """
     Main program function
     """
-    # Get arguments
+    # Get arguments and create graph
     args = get_arguments()
-    mydict = build_kmer_dict('data/eva71_hundred_reads.fq', 21)
-    my_graph = build_graph(mydict)
-    #draw_graph(my_graph, 'graph.png')
-    source = get_starting_nodes(my_graph)
-    target = get_sink_nodes(my_graph)
-    contigs = get_contigs(my_graph,source,target)
-    #save_contigs(contigs,'tests/test.fna')
+    kmer_dict = build_kmer_dict(args.fastq_file, args.kmer_size)
+    graph = build_graph(kmer_dict)
+    # Remove bubbles
+    graph = simplify_bubbles(graph)
+    # Remove entry and out tips
+    starting_nodes = get_starting_nodes(graph)
+    graph = solve_entry_tips(graph, starting_nodes)
+    sink_nodes = get_sink_nodes(graph)
+    graph = solve_out_tips(graph, sink_nodes)
+    # Save contigs
+    source = get_starting_nodes(graph)
+    target = get_sink_nodes(graph)
+    contigs = get_contigs(graph,source,target)
+    save_contigs(contigs,args.output_file)
 
 if __name__ == '__main__':
     main()
