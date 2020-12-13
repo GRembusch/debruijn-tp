@@ -18,13 +18,13 @@ import os
 import sys
 from operator import itemgetter
 import random
-from random import randint
+#from random import randint
 import statistics
 from collections import defaultdict
 import networkx as nx
 import matplotlib
 random.seed(9001)
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 
 __author__ = "Your Name"
 __copyright__ = "Universite Paris Diderot"
@@ -68,6 +68,10 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
+    """Generator that reads the given file.
+      :Parameters:
+          fastq_file: File to read
+    """
     with open(fastq_file) as myfile:
         for line in myfile: # @EVA...
             yield next(myfile)[:-1] # Séquence
@@ -76,13 +80,20 @@ def read_fastq(fastq_file):
 
 
 def cut_kmer(read, kmer_size):
+    """Generator that extracts kmers from a sequence.
+      :Parameters:
+          read: Generator that gives sequences
+          kmer_size: Size of a kmer
+    """
     for i in range(0, len(read) - kmer_size +1): # remove the "\n" at the end
         yield read[i:i+kmer_size]
-    #for value in read[:-kmer_size]:
-    #    yield read[i]
-
 
 def build_kmer_dict(fastq_file, kmer_size):
+    """Extract from a file a dict with a kmer as key and the number of occurences as value.
+      :Parameters:
+          fastq_file: File to read
+          kmer_size: Size of a kmer
+    """
     kmer_dict = defaultdict(lambda: 0)
     for read in read_fastq(fastq_file):
         for kmer in cut_kmer(read, kmer_size):
@@ -90,6 +101,10 @@ def build_kmer_dict(fastq_file, kmer_size):
     return kmer_dict
 
 def build_graph(kmer_dict):
+    """Build a graph from the given dict;
+      :Parameters:
+          kmer_dict: Dict of kmer.
+    """
     kmer_graph = nx.DiGraph()
     for key in kmer_dict:
         node1 = key[:-1]
@@ -100,6 +115,13 @@ def build_graph(kmer_dict):
     return kmer_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
+    """Remove the given paths from a given graph.
+      :Parameters:
+          graph: The graph from which we remove paths.
+          path_list: The list of paths we want to remove.
+          delete_entry_node: Boolean that tell if the entry nodes must be removed.
+          delete_sink_node: Boolean that tell if the sink nodes must be removed.
+    """
     for path in path_list:
         for node_number in range(0,len(path)-1) :
             graph.remove_edge(path[node_number], path[node_number+1])
@@ -113,10 +135,23 @@ def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     return graph
 
 def std(data):
+    """Return the standard deviation of list of values.
+      :Parameters:
+          data: List of values.
+    """
     return statistics.stdev(data)
 
 def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
+    """Return the graph without the unwanted paths.
+      :Parameters:
+          graph: The graph we want to clean.
+          path_list: List of all the possible paths of the graph.
+          path_length: List of the length of the paths.
+          weight_avg_list: List of the average weight of the paths.
+          delete_entry_node: Boolean that tell if the entry nodes must be removed.
+          delete_sink_node: Boolean that tell if the sink nodes must be removed.
+    """
     # determine if a path is more frequent than others
     max_weight = max(weight_avg_list)
     max_weight_indexes = [i for i, x in enumerate(weight_avg_list) if x == max_weight]
@@ -141,6 +176,11 @@ def select_best_path(graph, path_list, path_length, weight_avg_list,
     return graph
 
 def path_average_weight(graph, path):
+    """Return the average weight of a path.
+      :Parameters:
+          graph: The graph which contains the path.
+          path : The path we want to evaluate.
+    """
     average_weight = []
     for i in range(0, len(path)-1):
         data = graph.get_edge_data(path[i],path[i+1])
@@ -148,6 +188,12 @@ def path_average_weight(graph, path):
     return statistics.mean(average_weight)
 
 def solve_bubble(graph, ancestor_node, descendant_node):
+    """Solve a bubble from given ancestor and descendant nodes in a given graph.
+      :Parameters:
+          graph: The graph which contains the paths.
+          ancestor_node: The origin node from the paths.
+          descendant_node: The ending node from the paths.
+    """
     path_list = list(nx.all_simple_paths(graph,ancestor_node, descendant_node))
     path_length = []
     path_weight = []
@@ -157,25 +203,11 @@ def solve_bubble(graph, ancestor_node, descendant_node):
     graph = select_best_path(graph, path_list, path_length, path_weight)
     return graph
 
-def test_solve_bubble():
-    graph_1 = nx.DiGraph()
-    graph_1.add_weighted_edges_from([(1, 2, 10), (3, 2, 10), (2, 4, 15),
-                                     (4, 5, 15), (2, 10,10), (10, 5,10),
-                                     (2, 8, 3), (8, 9, 3), (9, 5, 3),
-                                     (5, 6, 10), (5, 7, 10)])
-    #graph_1 = solve_bubble(graph_1, 2, 5)
-
-    graph_2 = nx.DiGraph()
-    graph_2.add_weighted_edges_from([(1, 2, 10), (3, 2, 10), (2, 4, 10),
-                                     (4, 5, 10), (2, 10,10), (10, 5,10),
-                                     (2, 8, 10), (8, 9, 10), (9, 5, 10),
-                                     (5, 6, 10), (5, 7, 10)])
-    #graph_2 = solve_bubble(graph_2, 2, 5)
-    simplify_bubbles(graph_1)
-
-
-
 def simplify_bubbles(graph):
+    """Remove all bubbles from a given graph.
+      :Parameters:
+          graph: The graph from which we want to remove bubbles.
+    """
     nodes = graph.nodes()
     bubbles = []
     for node in nodes:
@@ -202,12 +234,43 @@ def simplify_bubbles(graph):
 
 
 def solve_entry_tips(graph, starting_nodes):
-    pass
+    """Remove all entry tips from the given graph.
+      :Parameters:
+          graph: The graph from which we want to remove tips.
+          starting_nodes: The entry nodes from the paths.
+    """
+    reverse_graph = nx.reverse(graph)
+    solved_graph = solve_out_tips(reverse_graph,starting_nodes)
+    graph = nx.reverse(solved_graph)
+    return graph
 
 def solve_out_tips(graph, ending_nodes):
-    pass
+    """Remove all ending tips from the given graph.
+      :Parameters:
+          graph: The graph from which we want to remove tips.
+          ending_nodes: The ending nodes from the paths.
+    """
+    common_ancestor = nx.algorithms.lowest_common_ancestor(graph,ending_nodes[0], ending_nodes[1])
+    for i in range(1,len(ending_nodes)-1):
+        pred = ending_nodes[i]
+        common_ancestor = nx.algorithms.lowest_common_ancestor(graph, common_ancestor, pred, default=common_ancestor)
+    paths = []
+    path_length = []
+    path_weight = []
+    for ending_node in ending_nodes:
+        simple_paths = list(nx.all_simple_paths(graph,common_ancestor,ending_node))
+        for simple_path in simple_paths:
+            paths.append(simple_path)
+            path_length.append(len(simple_path))
+            path_weight.append(path_average_weight(graph,simple_path))
+    graph = select_best_path(graph, paths, path_length, path_weight)
+    return graph
 
 def get_starting_nodes(graph):
+    """Get all the starting nodes of a graph.
+      :Parameters:
+          graph: The graph from which we want the starting nodes.
+    """
     starting_nodes = []
     for node in graph:
         if len(graph.in_edges(node)) == 0:
@@ -215,6 +278,10 @@ def get_starting_nodes(graph):
     return starting_nodes
 
 def get_sink_nodes(graph):
+    """Get all the sink nodes of a graph.
+      :Parameters:
+          graph: The graph from which we want the sink nodes.
+    """
     sink_nodes = []
     for node in graph:
         if len(graph.out_edges(node)) == 0:
@@ -222,6 +289,12 @@ def get_sink_nodes(graph):
     return sink_nodes
 
 def get_contigs(graph, starting_nodes, ending_nodes):
+    """Get all the possible paths of the given graph, with the given starting and ending nodes.
+      :Parameters:
+          graph: The graph from which we want the paths.
+          starting_nodes: Starting nodes of the graph.
+          ending_nodes: Endind nodes of the graph.
+    """
     contigs = []
     for source in starting_nodes:
         for target in ending_nodes:
@@ -238,6 +311,11 @@ def fill(text, width=80):
     return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 
 def save_contigs(contigs_list, output_file):
+    """Save the contigs in a file.
+      :Parameters:
+          contigs_list: List of contigs.
+          output_file: File in which we save the contigs.
+    """
     myfile = open(output_file,'w')
     contig_number = 0
     for contig, len_contig in contigs_list:
@@ -284,7 +362,6 @@ def main():
     target = get_sink_nodes(my_graph)
     contigs = get_contigs(my_graph,source,target)
     #save_contigs(contigs,'tests/test.fna')
-    test_solve_bubble()
 
 if __name__ == '__main__':
     main()
